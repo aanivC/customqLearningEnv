@@ -102,8 +102,8 @@ for episode in range(hmEpisodes):
 
         player.action(action)
 
-        #enemy.move()
-        #food.move()
+        enemy.move()
+        food.move()
 
         if player.x == enemy.x and player.y == enemy.y:
             reward = -enemyPenalty
