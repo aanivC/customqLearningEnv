@@ -10,7 +10,7 @@ import time
 style.use('ggplot')
 
 size = 10
-hmEpisodes = 25000
+hmEpisodes = 25_000 #peep the _ tech
 movePenalty = 1
 enemyPenalty = 300
 foodReward = 25
@@ -18,9 +18,8 @@ foodReward = 25
 epsilon = 0.9
 EPS_DECAY = 0.9998
 
-SHOW_EVERY = 3000
-
-start_q_table = None # or file name so u can keep training from where uleft off
+SHOW_EVERY = 5_000
+start_q_table = "qtable123.pickle" # or file name so u can keep training from where uleft off
 LEARNING_RATE = 0.1
 DISCOUNT = 0.95
 
@@ -78,5 +77,89 @@ else:
     with open(start_q_table, "rb") as f:
         q_table = pickle.load(f)
 
+episode_rewards = []
+
 for episode in range(hmEpisodes):
-    
+    player = blob()
+    food = blob()
+    enemy = blob()
+
+    if episode % SHOW_EVERY == 0 and episode != 0:
+        print(f" on # {episode}, epsilon {epsilon}")
+        print (f"{SHOW_EVERY} ep mean {np.mean(episode_rewards[-SHOW_EVERY:])}")
+        show = True
+    else:
+        show = False 
+
+    episode_reward = 0
+
+    for i in range(200):
+        obs = (player-food,player-enemy) 
+        if np.random.random() > epsilon:
+            action = np.argmax(q_table[obs])
+        else:
+            action = np.random.randint(0,4) #0,1,2,3
+
+        player.action(action)
+
+        #enemy.move()
+        #food.move()
+
+        if player.x == enemy.x and player.y == enemy.y:
+            reward = -enemyPenalty
+        elif player.x == food.x and player.y == food.y:
+            reward = foodReward
+        else:
+            reward = -movePenalty
+
+        new_obs = (player - food, player - enemy)
+
+        maxFutureQ = np.max(q_table[new_obs])
+        currentQ = q_table[obs][action]
+
+        if (reward == foodReward):
+            new_q = foodReward
+        elif reward == -enemyPenalty:
+            new_q = -enemyPenalty
+        else:
+            new_q = (1-LEARNING_RATE) * currentQ + LEARNING_RATE * (reward + DISCOUNT * maxFutureQ)
+
+        q_table[obs][action] = new_q
+
+        if show:
+            env = np.zeros((size,size,3), dtype = np.uint8) #figure this one out
+            env[food.x][food.y] = d[food_n] 
+            env[player.x][player.y] = d[player_n] 
+            env[enemy.x][enemy.y] = d[enemy_n] 
+
+            img = Image.fromarray(env,"RGB")
+            img = img.resize((300,300))
+            cv2.imshow("xd", np.array(img))
+
+            if reward == foodReward or reward == -enemyPenalty:
+                print('game is over')
+                if cv2.waitKey(1500) & 0xFF == ord("q"):
+                    break
+            else:
+                if cv2.waitKey(200) & 0xFF == ord("q"):
+                    break
+
+        episode_reward += reward
+
+        if reward == foodReward or reward == -enemyPenalty:
+            break
+
+    episode_rewards.append(episode_reward)
+    epsilon *= EPS_DECAY
+
+moving_avg = np.convolve(episode_rewards, np.ones((SHOW_EVERY,)) / SHOW_EVERY, mode  = "valid") # for loop for da np.means xd 
+
+plt.plot([i for i in range(len(moving_avg))], moving_avg)
+plt.ylabel(f"reward{SHOW_EVERY}ma")
+plt.xlabel(f"episode #")
+plt.show()
+
+print('writing now!')
+
+with open("qtable123.pickle", "wb") as f:
+    pickle.dump(q_table,f)
